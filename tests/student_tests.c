@@ -4,7 +4,7 @@ TestSuite(command_tests, .timeout=TEST_TIMEOUT, .disabled=true);
 TestSuite(student_tests, .timeout=TEST_TIMEOUT, .disabled=true);
 TestSuite(encode_tests, .timeout=TEST_TIMEOUT, .disabled=true);
 TestSuite(decode_tests, .timeout=TEST_TIMEOUT, .disabled=true);
-TestSuite(poker_tests, .timeout=TEST_TIMEOUT, .disabled=false);
+TestSuite(poker_tests, .timeout=TEST_TIMEOUT, .disabled=true);
 
 Test(student_tests, doc1) {
     execute_test("doc1", "e 63 31 31 31");

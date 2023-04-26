@@ -144,7 +144,7 @@ case_E:
     li $v0, 34
     syscall
 
-    j exit
+    j end_switch
 
 case_D:
     li $t0, 2
@@ -199,8 +199,147 @@ case_D:
 case_P:
     li $t0, 2
     bne $s1, $t0, exit_with_invalid_args_error
-    # TODO
-    j end_switch
+
+    # s0 -> arg1
+    lw $s0, addr_arg1
+
+    # s1 -> characters left to read
+    li $s1, 5
+
+    # s4-7 -> binary encoding of clubs, spades, diamonds, hearts 
+    li $s4, 0
+    li $s5, 0
+    li $s6, 0
+    li $s7, 0
+case_P_loop:
+    beq $s1, $0, case_P_loop_end
+
+    lbu $s2, 0($s0)
+    beq $s2, $0, case_P_loop_end
+    
+    li $s3, 0x3D
+    ble $s2, $s3, case_P_loop_case_clubs
+
+    li $s3, 0x4D
+    ble $s2, $s3, case_P_loop_case_spades
+
+    li $s3, 0x5D
+    ble $s2, $s3, case_P_loop_case_diamonds
+
+    # since inputs are valid, this must be hearts
+    j case_P_loop_case_hearts
+
+case_P_loop_case_clubs:
+    li $s3, 0x31
+    sub $s2, $s2, $s3
+
+    li $s3, 1
+    sllv $s3, $s3, $s2 # shift 1-hot binary number to its rank position
+    or $s4, $s4, $s3 # store 1-hot in clubs
+
+    j case_P_loop_continue
+
+case_P_loop_case_spades:
+    li $s3, 0x41
+    sub $s2, $s2, $s3
+
+    li $s3, 1
+    sllv $s3, $s3, $s2 # shift 1-hot binary number to its rank position
+    or $s5, $s5, $s3 # store 1-hot in spades
+
+    j case_P_loop_continue
+
+case_P_loop_case_diamonds:
+    li $s3, 0x51
+    sub $s2, $s2, $s3
+
+    li $s3, 1
+    sllv $s3, $s3, $s2 # shift 1-hot binary number to its rank position
+    or $s6, $s6, $s3 # store 1-hot in diamonds
+
+    j case_P_loop_continue
+
+case_P_loop_case_hearts:
+    li $s3, 0x61
+    sub $s2, $s2, $s3
+
+    li $s3, 1
+    sllv $s3, $s3, $s2 # shift 1-hot binary number to its rank position
+    or $s7, $s7, $s3 # store 1-hot in hearts
+
+    j case_P_loop_continue
+
+case_P_loop_continue:
+    # reminder: s2->rank (0->A, ..., 12->K) 
+    # reminder: s4->suit (0->clubs, 1->spades, 2->diamonds, 3->hearts)
+
+    addi $s0, $s0, 1
+    addi $s1, $s1, -1
+    j case_P_loop
+
+case_P_loop_end:
+    # check for straight
+    li $s0, 0
+    or $s0, $s0, $s4
+    or $s0, $s0, $s5
+    or $s0, $s0, $s6
+    or $s0, $s0, $s7
+    # now s0->binary encoding of all ranks, 0 if rank exist, 1 if rank doesnt
+
+    move $a0, $s0
+    jal has_straight
+    bne $v0, $0, exit_with_straight_str
+
+    # check for 4 of kind
+    move $s0, $s4 # we dont set s0 to 0 because we will alwyas get 0 no matter wat we do after
+    and $s0, $s0, $s5
+    and $s0, $s0, $s6
+    and $s0, $s0, $s7
+    # now s0->binary encoding, 1 if rank appears in all 4 suits
+
+    bne $s0, $0, exit_with_four_str
+
+    # check for two pair
+    li $s0, 0 # s0 -> num pairs saw
+    li $s1, 13 # s1 -> counter from 13 to 0
+
+case_P_pair_loop:
+    beq $s1, $0, case_P_pair_loop_end
+
+    li $s2, 0 # s2 -> number of rank
+
+    # add 1 if clubs has rank
+    andi $s2, $s4, 1
+    
+    # add 1 if spades has rank
+    andi $s3, $s5, 1
+    add $s2, $s2, $s3
+
+    # add 1 if diamonds has rank
+    andi $s3, $s6, 1
+    add $s2, $s2, $s3
+
+    # add 1 if hearts has rank
+    andi $s3, $s7, 1
+    add $s2, $s2, $s3
+
+    # check if count is < 2
+    li $s3, 2
+    blt $s2, $s3, case_P_pair_loop_no_pair
+    addi $s0, $s0, 1
+case_P_pair_loop_no_pair:
+    srl $s4, $s4, 1
+    srl $s5, $s5, 1
+    srl $s6, $s6, 1
+    srl $s7, $s7, 1
+    addi $s1, $s1, -1
+    j case_P_pair_loop
+case_P_pair_loop_end:
+    # check if num pairs is >= 2
+    li $s1, 2
+    bge $s0, $s1, exit_with_pair_str
+
+    j exit_with_unknown_hand_str
 
 end_switch:
 
@@ -228,7 +367,61 @@ exit_with_invalid_args_error:
     syscall
     j exit
 
+exit_with_straight_str:
+    la $a0, straight_str
+    li $v0, 4
+    syscall
+    j exit
+
+exit_with_four_str:
+    la $a0, four_str
+    li $v0, 4
+    syscall
+    j exit
+
+exit_with_pair_str:
+    la $a0, pair_str
+    li $v0, 4
+    syscall
+    j exit
+
+exit_with_unknown_hand_str:
+    la $a0, unknown_hand_str
+    li $v0, 4
+    syscall
+    j exit
+
 ######## FUNCTIONS ########
+
+#start function := check if straight exists
+has_straight:
+    # a0 -> bianry encoding of ranks
+    beq $a0, $0, has_straight_end
+
+    addi $sp, $sp, -4
+    sw $ra, 0($sp)
+
+    li $t0, 0x1f # mask
+    and $t1, $a0, $t0
+    beq $t1, $t0, has_straight_found
+
+    srl $a0, $a0, 1
+    jal has_straight # shift right 1, and recursively check
+
+    # then check if recursive call found straight
+    beq $v0, $0, has_straight_not_found
+has_straight_found:
+    lw $ra, 0($sp)
+    addi $sp, $sp, 4
+
+    li $v0, 1
+    jr $ra
+has_straight_not_found:
+    lw $ra, 0($sp)
+    addi $sp, $sp, 4
+has_straight_end:
+    li $v0, 0
+    jr $ra
 
 #start function := recursively print a number's bits from LSB to Nth bit
 resursive_print:
@@ -287,17 +480,6 @@ str_len_loop:
     addi $v0, $v0, 1 # increment the counter
     j str_len_loop
 str_len_end:
-    jr $ra
-#end function
-
-#start function := check if $a0 is equal to $a1 (return boolean in int)
-a0_equals_a1:
-    beq $a0, $a1, a0_equals_a1_true
-    li $v0, 0
-    j a0_equals_a1_end
-a0_equals_a1_true:
-    li $v0, 1
-a0_equals_a1_end:
     jr $ra
 #end function
 
@@ -371,6 +553,7 @@ hex_to_int_end:
 
     move $v0, $t2
     jr $ra
+#end function
 
 ######## END ########
 
